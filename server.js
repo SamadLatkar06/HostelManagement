@@ -51,7 +51,7 @@ app.post("/send-otp", async (req, res) => {
         // Send email
         await transporter.sendMail({
 
-            from: process.env.GMAIL_USER,
+            from: `"Hostel Management" <${process.env.GMAIL_USER}>`,
 
             to: email,
 
