@@ -1,8 +1,9 @@
 const express = require("express");
+const ws = require("ws");
 const nodemailer = require("nodemailer");
 const cors = require("cors");
 require("dotenv").config();
-
+const { createClient } = require("@supabase/supabase-js");
 const app = express();
 
 app.use(cors());
@@ -18,7 +19,17 @@ const transporter = nodemailer.createTransport({
         user: process.env.GMAIL_USER,
         pass: process.env.GMAIL_APP_PASSWORD
     }
+  
 });
+const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_KEY,
+    {
+        realtime: {
+            transport: ws
+        }
+    }
+);
 
 
 // ===============================
@@ -85,7 +96,77 @@ app.post("/send-otp", async (req, res) => {
 // ===============================
 // VERIFY OTP
 // ===============================
+// ===============================
+// CREATE ACCOUNT
+// ===============================
 
+app.post("/create-account", async (req, res) => {
+
+    try {
+
+        const {
+            name,
+            prn,
+            hostel_address,
+            gmail,
+            password
+        } = req.body;
+
+        // Check all fields
+        if (
+            !name ||
+            !prn ||
+            !hostel_address ||
+            !gmail ||
+            !password
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "All fields are required"
+            });
+        }
+
+        // Save account in Supabase
+        const { data, error } = await supabase
+            .from("users")
+            .insert([
+                {
+                    name: name,
+                    prn: prn,
+                    hostel_address: hostel_address,
+                    gmail: gmail,
+                    password: password
+                }
+            ])
+            .select();
+
+        // Supabase error
+        if (error) {
+
+            console.log("Supabase error:", error);
+
+            return res.status(500).json({
+                success: false,
+                message: error.message
+            });
+        }
+
+        // Success
+        res.json({
+            success: true,
+            message: "Account created successfully"
+        });
+
+    } catch (error) {
+
+        console.log("Create account error:", error);
+
+        res.status(500).json({
+            success: false,
+            message: "Server error"
+        });
+    }
+});
 app.post("/verify-otp", (req, res) => {
 
     const { email, otp } = req.body;
