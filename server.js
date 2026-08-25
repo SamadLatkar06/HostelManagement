@@ -1,5 +1,6 @@
 const express = require("express");
 const ws = require("ws");
+const multer = require("multer");
 const nodemailer = require("nodemailer");
 const cors = require("cors");
 require("dotenv").config();
@@ -11,7 +12,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+        fileSize: 5 * 1024 * 1024
+    }
+});
 // ===============================
 // TEMPORARY OTP STORAGE
 // ===============================
@@ -357,7 +363,104 @@ app.post("/create-account", async (req, res) => {
     }
 
 });
+// ===============================
+// UPLOAD COMPLAINT IMAGE
+// ===============================
 
+app.post(
+    "/upload-complaint-image",
+    upload.single("image"),
+    async (req, res) => {
+
+        try {
+
+            if (!req.file) {
+
+                return res.status(400).json({
+                    success: false,
+                    message: "Image is required"
+                });
+
+            }
+
+            const extension =
+                req.file.mimetype === "image/png"
+                    ? "png"
+                    : "jpg";
+
+            const fileName =
+                `complaint-${Date.now()}.${extension}`;
+
+
+            // Upload image to Supabase Storage
+            const { data, error } =
+                await supabase.storage
+                    .from("complaint-images")
+                    .upload(
+                        fileName,
+                        req.file.buffer,
+                        {
+                            contentType: req.file.mimetype,
+                            upsert: false
+                        }
+                    );
+
+
+            if (error) {
+
+                console.log(
+                    "Storage upload error:",
+                    error
+                );
+
+                return res.status(500).json({
+                    success: false,
+                    message: error.message
+                });
+
+            }
+
+
+            // Get public image URL
+            const { data: publicData } =
+                supabase.storage
+                    .from("complaint-images")
+                    .getPublicUrl(data.path);
+
+
+            res.json({
+
+                success: true,
+
+                message:
+                    "Image uploaded successfully",
+
+                image_url:
+                    publicData.publicUrl
+
+            });
+
+
+        } catch (error) {
+
+            console.log(
+                "Image upload error:",
+                error
+            );
+
+            res.status(500).json({
+
+                success: false,
+
+                message:
+                    "Failed to upload image"
+
+            });
+
+        }
+
+    }
+);
 // ===============================
 // SUBMIT COMPLAINT
 // ===============================
