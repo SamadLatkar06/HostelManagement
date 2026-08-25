@@ -358,7 +358,88 @@ app.post("/create-account", async (req, res) => {
 
 });
 
+// ===============================
+// SUBMIT COMPLAINT
+// ===============================
 
+app.post("/submit-complaint", async (req, res) => {
+
+    try {
+
+        const {
+            name,
+            hostel_name,
+            room_number,
+            complaint_description,
+            image_url
+        } = req.body;
+
+        // Check required fields
+        if (
+            !name ||
+            !hostel_name ||
+            !room_number ||
+            !complaint_description
+        ) {
+
+            return res.status(400).json({
+                success: false,
+                message: "All complaint fields are required"
+            });
+
+        }
+
+        // Save complaint in Supabase
+        const { data, error } = await supabase
+            .from("complaints")
+            .insert([
+                {
+                    name: name,
+                    hostel_name: hostel_name,
+                    room_number: room_number,
+                    complaint_description: complaint_description,
+                    image_url: image_url || null,
+                    status: "Pending"
+                }
+            ])
+            .select()
+            .single();
+
+        if (error) {
+
+            console.log(
+                "Complaint Supabase error:",
+                error
+            );
+
+            return res.status(500).json({
+                success: false,
+                message: error.message
+            });
+
+        }
+
+        res.json({
+            success: true,
+            message: "Complaint submitted successfully",
+            complaint: data
+        });
+
+    } catch (error) {
+
+        console.log(
+            "Submit complaint error:",
+            error
+        );
+
+        res.status(500).json({
+            success: false,
+            message: "Server error"
+        });
+
+    }
+
+});
 // ===============================
 // LOGIN
 // ===============================
