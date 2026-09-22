@@ -18,16 +18,18 @@ const upload = multer({
         fileSize: 5 * 1024 * 1024
     }
 });
-// ===============================
+
+
+// =========================================================
 // TEMPORARY OTP STORAGE
-// ===============================
+// =========================================================
 
 const otpStore = {};
 
 
-// ===============================
+// =========================================================
 // GMAIL CONFIGURATION
-// ===============================
+// =========================================================
 
 const transporter = nodemailer.createTransport({
     service: "gmail",
@@ -39,9 +41,9 @@ const transporter = nodemailer.createTransport({
 });
 
 
-// ===============================
+// =========================================================
 // SUPABASE CONFIGURATION
-// ===============================
+// =========================================================
 
 const supabase = createClient(
     process.env.SUPABASE_URL,
@@ -54,9 +56,9 @@ const supabase = createClient(
 );
 
 
-// ===============================
+// =========================================================
 // SEND OTP
-// ===============================
+// =========================================================
 
 app.post("/send-otp", async (req, res) => {
 
@@ -76,7 +78,10 @@ app.post("/send-otp", async (req, res) => {
 
         // Generate 6 digit OTP
         const otp =
-            Math.floor(100000 + Math.random() * 900000).toString();
+            Math.floor(
+                100000 +
+                Math.random() * 900000
+            ).toString();
 
 
         // Store OTP for 5 minutes
@@ -85,7 +90,8 @@ app.post("/send-otp", async (req, res) => {
             otp: otp,
 
             expiresAt:
-                Date.now() + 5 * 60 * 1000
+                Date.now() +
+                5 * 60 * 1000
 
         };
 
@@ -112,28 +118,36 @@ app.post("/send-otp", async (req, res) => {
         });
 
 
-        console.log("OTP sent to:", email);
+        console.log(
+            "OTP sent to:",
+            email
+        );
 
 
         res.json({
 
             success: true,
 
-            message: "OTP sent successfully"
+            message:
+                "OTP sent successfully"
 
         });
 
 
     } catch (error) {
 
-        console.log("Email error:", error);
+        console.log(
+            "Email error:",
+            error
+        );
 
 
         res.status(500).json({
 
             success: false,
 
-            message: "Failed to send OTP"
+            message:
+                "Failed to send OTP"
 
         });
 
@@ -142,13 +156,16 @@ app.post("/send-otp", async (req, res) => {
 });
 
 
-// ===============================
+// =========================================================
 // VERIFY OTP
-// ===============================
+// =========================================================
 
 app.post("/verify-otp", (req, res) => {
 
-    const { email, otp } = req.body;
+    const {
+        email,
+        otp
+    } = req.body;
 
 
     if (!email || !otp) {
@@ -184,7 +201,10 @@ app.post("/verify-otp", (req, res) => {
 
 
     // Check OTP expiry
-    if (Date.now() > storedData.expiresAt) {
+    if (
+        Date.now() >
+        storedData.expiresAt
+    ) {
 
         delete otpStore[email];
 
@@ -202,7 +222,9 @@ app.post("/verify-otp", (req, res) => {
 
 
     // Check OTP
-    if (storedData.otp !== otp) {
+    if (
+        storedData.otp !== otp
+    ) {
 
         return res.status(400).json({
 
@@ -232,42 +254,30 @@ app.post("/verify-otp", (req, res) => {
 });
 
 
-// ===============================
+// =========================================================
 // CREATE ACCOUNT
-// ===============================
+// =========================================================
 
 app.post("/create-account", async (req, res) => {
 
     try {
 
         const {
-
             name,
-
             prn,
-
             hostel_address,
-
             gmail,
-
             password
-
         } = req.body;
 
 
         // Check all fields
         if (
-
             !name ||
-
             !prn ||
-
             !hostel_address ||
-
             !gmail ||
-
             !password
-
         ) {
 
             return res.status(400).json({
@@ -283,32 +293,31 @@ app.post("/create-account", async (req, res) => {
 
 
         // Save account in Supabase
-        const { data, error } =
+        const {
+            data,
+            error
+        } = await supabase
 
-            await supabase
+            .from("users")
 
-                .from("users")
+            .insert([
 
-                .insert([
+                {
+                    name: name,
 
-                    {
+                    prn: prn,
 
-                        name: name,
+                    hostel_address:
+                        hostel_address,
 
-                        prn: prn,
+                    gmail: gmail,
 
-                        hostel_address:
-                            hostel_address,
+                    password: password
+                }
 
-                        gmail: gmail,
+            ])
 
-                        password: password
-
-                    }
-
-                ])
-
-                .select();
+            .select();
 
 
         // Supabase error
@@ -363,9 +372,11 @@ app.post("/create-account", async (req, res) => {
     }
 
 });
-// ===============================
+
+
+// =========================================================
 // UPLOAD COMPLAINT IMAGE
-// ===============================
+// =========================================================
 
 app.post(
     "/upload-complaint-image",
@@ -377,33 +388,45 @@ app.post(
             if (!req.file) {
 
                 return res.status(400).json({
+
                     success: false,
-                    message: "Image is required"
+
+                    message:
+                        "Image is required"
+
                 });
 
             }
+
 
             const extension =
                 req.file.mimetype === "image/png"
                     ? "png"
                     : "jpg";
 
+
             const fileName =
                 `complaint-${Date.now()}.${extension}`;
 
 
             // Upload image to Supabase Storage
-            const { data, error } =
-                await supabase.storage
-                    .from("complaint-images")
-                    .upload(
-                        fileName,
-                        req.file.buffer,
-                        {
-                            contentType: req.file.mimetype,
-                            upsert: false
-                        }
-                    );
+            const {
+                data,
+                error
+            } = await supabase.storage
+
+                .from("complaint-images")
+
+                .upload(
+                    fileName,
+                    req.file.buffer,
+                    {
+                        contentType:
+                            req.file.mimetype,
+
+                        upsert: false
+                    }
+                );
 
 
             if (error) {
@@ -413,19 +436,30 @@ app.post(
                     error
                 );
 
+
                 return res.status(500).json({
+
                     success: false,
-                    message: error.message
+
+                    message:
+                        error.message
+
                 });
 
             }
 
 
             // Get public image URL
-            const { data: publicData } =
+            const {
+                data: publicData
+            } =
                 supabase.storage
+
                     .from("complaint-images")
-                    .getPublicUrl(data.path);
+
+                    .getPublicUrl(
+                        data.path
+                    );
 
 
             res.json({
@@ -448,6 +482,7 @@ app.post(
                 error
             );
 
+
             res.status(500).json({
 
                 success: false,
@@ -461,341 +496,620 @@ app.post(
 
     }
 );
-// ===============================
+
+
+// =========================================================
 // SUBMIT COMPLAINT
-// ===============================
+// =========================================================
 
-app.post("/submit-complaint", async (req, res) => {
+app.post(
+    "/submit-complaint",
+    async (req, res) => {
 
-    try {
+        try {
 
-        const {
-            name,
-            hostel_name,
-            room_number,
-            complaint_description,
-            image_url
-        } = req.body;
+            const {
+                username,
+                name,
+                hostel_name,
+                room_number,
+                complaint_description,
+                image_url
+            } = req.body;
 
-        // Check required fields
-        if (
-            !name ||
-            !hostel_name ||
-            !room_number ||
-            !complaint_description
-        ) {
 
-            return res.status(400).json({
-                success: false,
-                message: "All complaint fields are required"
-            });
+            // Check required fields
+            if (
+                !username ||
+                !name ||
+                !hostel_name ||
+                !room_number ||
+                !complaint_description
+            ) {
 
-        }
+                return res.status(400).json({
 
-        // Save complaint in Supabase
-        const { data, error } = await supabase
-            .from("complaints")
-            .insert([
-                {
-                    name: name,
-                    hostel_name: hostel_name,
-                    room_number: room_number,
-                    complaint_description: complaint_description,
-                    image_url: image_url || null,
-                    status: "Pending"
-                }
-            ])
-            .select()
-            .single();
+                    success: false,
 
-        if (error) {
+                    message:
+                        "All complaint fields are required"
+
+                });
+
+            }
+
 
             console.log(
-                "Complaint Supabase error:",
+                "New complaint from username:",
+                username
+            );
+
+
+            // Save complaint in Supabase
+            const {
+                data,
+                error
+            } = await supabase
+
+                .from("complaints")
+
+                .insert([
+
+                    {
+                        username: username,
+
+                        name: name,
+
+                        hostel_name:
+                            hostel_name,
+
+                        room_number:
+                            room_number,
+
+                        complaint_description:
+                            complaint_description,
+
+                        image_url:
+                            image_url || null,
+
+                        status:
+                            "Pending"
+                    }
+
+                ])
+
+                .select()
+
+                .single();
+
+
+            if (error) {
+
+                console.log(
+                    "Complaint Supabase error:",
+                    error
+                );
+
+
+                return res.status(500).json({
+
+                    success: false,
+
+                    message:
+                        error.message
+
+                });
+
+            }
+
+
+            res.json({
+
+                success: true,
+
+                message:
+                    "Complaint submitted successfully",
+
+                complaint:
+                    data
+
+            });
+
+
+        } catch (error) {
+
+            console.log(
+                "Submit complaint error:",
                 error
             );
 
-            return res.status(500).json({
-                success: false,
-                message: error.message
-            });
 
-        }
-
-        res.json({
-            success: true,
-            message: "Complaint submitted successfully",
-            complaint: data
-        });
-
-    } catch (error) {
-
-        console.log(
-            "Submit complaint error:",
-            error
-        );
-
-        res.status(500).json({
-            success: false,
-            message: "Server error"
-        });
-
-    }
-
-});
-// ===============================
-// GET ALL COMPLAINTS
-// ===============================
-
-app.get("/complaints", async (req, res) => {
-
-    try {
-
-        const { data, error } = await supabase
-            .from("complaints")
-            .select("*")
-            .order("created_at", {
-                ascending: false
-            });
-
-        if (error) {
-
-            console.log(
-                "Fetch complaints error:",
-                error
-            );
-
-            return res.status(500).json({
-                success: false,
-                message: error.message
-            });
-        }
-
-        res.json({
-            success: true,
-            complaints: data
-        });
-
-    } catch (error) {
-
-        console.log(
-            "Get complaints error:",
-            error
-        );
-
-        res.status(500).json({
-            success: false,
-            message: "Server error"
-        });
-    }
-});
-// ===============================
-// MARK COMPLAINT AS RESOLVED
-// ===============================
-
-app.patch("/complaints/:id", async (req, res) => {
-
-    try {
-
-        const { id } = req.params;
-
-        const { data, error } = await supabase
-            .from("complaints")
-            .update({
-                status: "Resolved"
-            })
-            .eq("id", id)
-            .select()
-            .single();
-
-        if (error) {
-
-            console.log(
-                "Update complaint error:",
-                error
-            );
-
-            return res.status(500).json({
-                success: false,
-                message: error.message
-            });
-        }
-
-        if (!data) {
-
-            return res.status(404).json({
-                success: false,
-                message: "Complaint not found"
-            });
-        }
-
-        res.json({
-            success: true,
-            message: "Complaint marked as resolved",
-            complaint: data
-        });
-
-    } catch (error) {
-
-        console.log(
-            "Resolve complaint error:",
-            error
-        );
-
-        res.status(500).json({
-            success: false,
-            message: "Server error"
-        });
-    }
-});
-// ===============================
-// LOGIN
-// ===============================
-// NAME = USERNAME
-// ===============================
-
-app.post("/login", async (req, res) => {
-
-    try {
-
-        const {
-
-            name,
-
-            password
-
-        } = req.body;
-
-
-        // Check fields
-        if (!name || !password) {
-
-            return res.status(400).json({
+            res.status(500).json({
 
                 success: false,
 
                 message:
-                    "Name and password are required"
+                    "Server error"
 
             });
 
         }
 
+    }
+);
 
-        // Find user
-        const { data, error } =
 
-            await supabase
+// =========================================================
+// GET ALL COMPLAINTS
+// ADMIN
+// =========================================================
+
+app.get(
+    "/complaints",
+    async (req, res) => {
+
+        try {
+
+            const {
+                data,
+                error
+            } = await supabase
+
+                .from("complaints")
+
+                .select("*")
+
+                .order(
+                    "created_at",
+                    {
+                        ascending: false
+                    }
+                );
+
+
+            if (error) {
+
+                console.log(
+                    "Fetch complaints error:",
+                    error
+                );
+
+
+                return res.status(500).json({
+
+                    success: false,
+
+                    message:
+                        error.message
+
+                });
+
+            }
+
+
+            res.json({
+
+                success: true,
+
+                complaints:
+                    data
+
+            });
+
+
+        } catch (error) {
+
+            console.log(
+                "Get complaints error:",
+                error
+            );
+
+
+            res.status(500).json({
+
+                success: false,
+
+                message:
+                    "Server error"
+
+            });
+
+        }
+
+    }
+);
+
+
+// =========================================================
+// GET MY COMPLAINTS
+// STUDENT
+// =========================================================
+
+app.get(
+    "/my-complaints",
+    async (req, res) => {
+
+        try {
+
+            const {
+                username
+            } = req.query;
+
+
+            // Check username
+            if (
+                !username ||
+                username.trim() === ""
+            ) {
+
+                return res.status(400).json({
+
+                    success: false,
+
+                    message:
+                        "Username is required"
+
+                });
+
+            }
+
+
+            console.log(
+                "Fetching complaints for:",
+                username
+            );
+
+
+            const {
+                data,
+                error
+            } = await supabase
+
+                .from("complaints")
+
+                .select("*")
+
+                .eq(
+                    "username",
+                    username
+                )
+
+                .order(
+                    "created_at",
+                    {
+                        ascending: false
+                    }
+                );
+
+
+            if (error) {
+
+                console.log(
+                    "My complaints error:",
+                    error
+                );
+
+
+                return res.status(500).json({
+
+                    success: false,
+
+                    message:
+                        error.message
+
+                });
+
+            }
+
+
+            res.json({
+
+                success: true,
+
+                username:
+                    username,
+
+                complaints:
+                    data
+
+            });
+
+
+        } catch (error) {
+
+            console.log(
+                "My complaints server error:",
+                error
+            );
+
+
+            res.status(500).json({
+
+                success: false,
+
+                message:
+                    "Server error"
+
+            });
+
+        }
+
+    }
+);
+
+
+// =========================================================
+// MARK COMPLAINT AS RESOLVED
+// ADMIN
+// =========================================================
+
+app.patch(
+    "/complaints/:id",
+    async (req, res) => {
+
+        try {
+
+            const {
+                id
+            } = req.params;
+
+
+            const {
+                data,
+                error
+            } = await supabase
+
+                .from("complaints")
+
+                .update({
+
+                    status:
+                        "Resolved"
+
+                })
+
+                .eq(
+                    "id",
+                    id
+                )
+
+                .select()
+
+                .single();
+
+
+            if (error) {
+
+                console.log(
+                    "Update complaint error:",
+                    error
+                );
+
+
+                return res.status(500).json({
+
+                    success: false,
+
+                    message:
+                        error.message
+
+                });
+
+            }
+
+
+            if (!data) {
+
+                return res.status(404).json({
+
+                    success: false,
+
+                    message:
+                        "Complaint not found"
+
+                });
+
+            }
+
+
+            res.json({
+
+                success: true,
+
+                message:
+                    "Complaint marked as resolved",
+
+                complaint:
+                    data
+
+            });
+
+
+        } catch (error) {
+
+            console.log(
+                "Resolve complaint error:",
+                error
+            );
+
+
+            res.status(500).json({
+
+                success: false,
+
+                message:
+                    "Server error"
+
+            });
+
+        }
+
+    }
+);
+
+
+// =========================================================
+// LOGIN
+// NAME = USERNAME
+// =========================================================
+
+app.post(
+    "/login",
+    async (req, res) => {
+
+        try {
+
+            const {
+                name,
+                password
+            } = req.body;
+
+
+            // Check fields
+            if (
+                !name ||
+                !password
+            ) {
+
+                return res.status(400).json({
+
+                    success: false,
+
+                    message:
+                        "Name and password are required"
+
+                });
+
+            }
+
+
+            // Find user
+            const {
+                data,
+                error
+            } = await supabase
 
                 .from("users")
 
                 .select("*")
 
-                .eq("name", name)
+                .eq(
+                    "name",
+                    name
+                )
 
-                .eq("password", password)
+                .eq(
+                    "password",
+                    password
+                )
 
                 .maybeSingle();
 
 
-        // Supabase error
-        if (error) {
+            // Supabase error
+            if (error) {
+
+                console.log(
+                    "Supabase login error:",
+                    error
+                );
+
+
+                return res.status(500).json({
+
+                    success: false,
+
+                    message:
+                        "Login failed"
+
+                });
+
+            }
+
+
+            // User not found
+            if (!data) {
+
+                return res.status(401).json({
+
+                    success: false,
+
+                    message:
+                        "Invalid name or password"
+
+                });
+
+            }
+
+
+            // Login successful
+            res.json({
+
+                success: true,
+
+                message:
+                    "Login successful",
+
+                user: {
+
+                    id:
+                        data.id,
+
+                    name:
+                        data.name,
+
+                    prn:
+                        data.prn,
+
+                    hostel_address:
+                        data.hostel_address,
+
+                    gmail:
+                        data.gmail
+
+                }
+
+            });
+
+
+        } catch (error) {
 
             console.log(
-                "Supabase login error:",
+                "Login error:",
                 error
             );
 
 
-            return res.status(500).json({
+            res.status(500).json({
 
                 success: false,
 
                 message:
-                    "Login failed"
+                    "Server error"
 
             });
 
         }
-
-
-        // User not found
-        if (!data) {
-
-            return res.status(401).json({
-
-                success: false,
-
-                message:
-                    "Invalid name or password"
-
-            });
-
-        }
-
-
-        // Login successful
-        res.json({
-
-            success: true,
-
-            message:
-                "Login successful",
-
-            user: {
-
-                id: data.id,
-
-                name: data.name,
-
-                prn: data.prn,
-
-                hostel_address:
-                    data.hostel_address,
-
-                gmail: data.gmail
-
-            }
-
-        });
-
-
-    } catch (error) {
-
-        console.log(
-            "Login error:",
-            error
-        );
-
-
-        res.status(500).json({
-
-            success: false,
-
-            message:
-                "Server error"
-
-        });
 
     }
+);
 
-});
 
-
-// ===============================
+// =========================================================
 // START SERVER
-// ===============================
+// =========================================================
 
 const PORT =
     process.env.PORT || 3000;
 
 
-app.listen(PORT, () => {
+app.listen(
+    PORT,
+    () => {
 
-    console.log(
+        console.log(
+            `MemoBox backend running on port ${PORT}`
+        );
 
-        `MemoBox backend running on port ${PORT}`
-
-    );
-
-});
+    }
+);
