@@ -544,6 +544,111 @@ app.post("/submit-complaint", async (req, res) => {
 
 });
 // ===============================
+// GET ALL COMPLAINTS
+// ===============================
+
+app.get("/complaints", async (req, res) => {
+
+    try {
+
+        const { data, error } = await supabase
+            .from("complaints")
+            .select("*")
+            .order("created_at", {
+                ascending: false
+            });
+
+        if (error) {
+
+            console.log(
+                "Fetch complaints error:",
+                error
+            );
+
+            return res.status(500).json({
+                success: false,
+                message: error.message
+            });
+        }
+
+        res.json({
+            success: true,
+            complaints: data
+        });
+
+    } catch (error) {
+
+        console.log(
+            "Get complaints error:",
+            error
+        );
+
+        res.status(500).json({
+            success: false,
+            message: "Server error"
+        });
+    }
+});
+// ===============================
+// MARK COMPLAINT AS RESOLVED
+// ===============================
+
+app.patch("/complaints/:id", async (req, res) => {
+
+    try {
+
+        const { id } = req.params;
+
+        const { data, error } = await supabase
+            .from("complaints")
+            .update({
+                status: "Resolved"
+            })
+            .eq("id", id)
+            .select()
+            .single();
+
+        if (error) {
+
+            console.log(
+                "Update complaint error:",
+                error
+            );
+
+            return res.status(500).json({
+                success: false,
+                message: error.message
+            });
+        }
+
+        if (!data) {
+
+            return res.status(404).json({
+                success: false,
+                message: "Complaint not found"
+            });
+        }
+
+        res.json({
+            success: true,
+            message: "Complaint marked as resolved",
+            complaint: data
+        });
+
+    } catch (error) {
+
+        console.log(
+            "Resolve complaint error:",
+            error
+        );
+
+        res.status(500).json({
+            success: false,
+            message: "Server error"
+        });
+    }
+});
+// ===============================
 // LOGIN
 // ===============================
 // NAME = USERNAME
