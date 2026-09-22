@@ -838,8 +838,9 @@ app.get(
 );
 
 
+
 // =========================================================
-// MARK COMPLAINT AS RESOLVED
+// UPDATE COMPLAINT STATUS
 // ADMIN
 // =========================================================
 
@@ -849,34 +850,38 @@ app.patch(
 
         try {
 
-            const {
-                id
-            } = req.params;
+            const { id } = req.params;
+            const { status } = req.body;
 
+            const allowedStatuses = [
+                "Pending",
+                "In Progress",
+                "Resolved"
+            ];
+
+            if (
+                !status ||
+                !allowedStatuses.includes(status)
+            ) {
+
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Invalid status. Use Pending, In Progress or Resolved."
+                });
+            }
 
             const {
                 data,
                 error
             } = await supabase
-
                 .from("complaints")
-
                 .update({
-
-                    status:
-                        "Resolved"
-
+                    status: status
                 })
-
-                .eq(
-                    "id",
-                    id
-                )
-
+                .eq("id", id)
                 .select()
-
                 .single();
-
 
             if (error) {
 
@@ -885,70 +890,43 @@ app.patch(
                     error
                 );
 
-
                 return res.status(500).json({
-
                     success: false,
-
-                    message:
-                        error.message
-
+                    message: error.message
                 });
-
             }
-
 
             if (!data) {
 
                 return res.status(404).json({
-
                     success: false,
-
                     message:
                         "Complaint not found"
-
                 });
-
             }
 
-
             res.json({
-
                 success: true,
-
                 message:
-                    "Complaint marked as resolved",
-
-                complaint:
-                    data
-
+                    "Complaint status updated successfully",
+                complaint: data
             });
-
 
         } catch (error) {
 
             console.log(
-                "Resolve complaint error:",
+                "Status update error:",
                 error
             );
 
-
             res.status(500).json({
-
                 success: false,
-
                 message:
                     "Server error"
-
             });
-
         }
-
     }
-);
-
-
-// =========================================================
+);// =========================================================
 // LOGIN
 // NAME = USERNAME
 // =========================================================
