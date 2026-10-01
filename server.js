@@ -55,7 +55,159 @@ const supabase = createClient(
     }
 );
 
+// =========================================================
+// ORB FEATURE MATCHING CONFIGURATION
+// =========================================================
 
+let cv = null;
+
+function getOpenCV() {
+    if (!cv) {
+        cv = require("@u4/opencv4nodejs");
+    }
+
+    return cv;
+}
+
+const ORB_FEATURES = 1000;
+const ORB_GOOD_MATCH_DISTANCE = 50;
+const ORB_MIN_GOOD_MATCHES = 15;
+const ORB_SIMILARITY_THRESHOLD = 0.15;
+
+
+function getGrayImageFromBuffer(buffer) {
+
+    const cv = getOpenCV();
+
+    const image = cv.imdecode(buffer);
+
+    if (!image || image.empty) {
+        throw new Error("Unable to decode image");
+    }
+
+    return image.bgrToGray();
+}
+
+
+function getOrbFeatures(grayImage) {
+
+    const cv = getOpenCV();
+
+    const orb = new cv.ORBDetector({
+        nFeatures: ORB_FEATURES
+    });
+
+    const keyPoints = orb.detect(grayImage);
+
+    const descriptors = orb.compute(
+        grayImage,
+        keyPoints
+    );
+
+    return {
+        keyPoints,
+        descriptors
+    };
+}
+
+
+function calculateOrbSimilarity(
+    newFeatures,
+    existingFeatures
+) {
+
+    const cv = getOpenCV();
+
+    if (
+        !newFeatures ||
+        !existingFeatures ||
+        !newFeatures.descriptors ||
+        !existingFeatures.descriptors
+    ) {
+        return {
+            similar: false,
+            similarity: 0,
+            goodMatches: 0,
+            totalMatches: 0
+        };
+    }
+
+    if (
+        newFeatures.descriptors.rows === 0 ||
+        existingFeatures.descriptors.rows === 0
+    ) {
+        return {
+            similar: false,
+            similarity: 0,
+            goodMatches: 0,
+            totalMatches: 0
+        };
+    }
+
+    const matches =
+        cv.matchBruteForceHamming(
+            newFeatures.descriptors,
+            existingFeatures.descriptors
+        );
+
+    if (!matches || matches.length === 0) {
+        return {
+            similar: false,
+            similarity: 0,
+            goodMatches: 0,
+            totalMatches: 0
+        };
+    }
+
+    const goodMatches =
+        matches.filter(
+            (match) =>
+                match.distance <=
+                ORB_GOOD_MATCH_DISTANCE
+        );
+
+    const descriptorCount =
+        Math.min(
+            newFeatures.descriptors.rows,
+            existingFeatures.descriptors.rows
+        );
+
+    const similarity =
+        descriptorCount > 0
+            ? goodMatches.length / descriptorCount
+            : 0;
+
+    const similar =
+        goodMatches.length >=
+            ORB_MIN_GOOD_MATCHES &&
+        similarity >=
+            ORB_SIMILARITY_THRESHOLD;
+
+    return {
+        similar: similar,
+        similarity: similarity,
+        goodMatches: goodMatches.length,
+        totalMatches: matches.length
+    };
+}
+
+
+async function downloadImageBuffer(imageUrl) {
+
+    const response =
+        await fetch(imageUrl);
+
+    if (!response.ok) {
+        throw new Error(
+            `Failed to download image: ${response.status}`
+        );
+    }
+
+    const arrayBuffer =
+        await response.arrayBuffer();
+
+    return Buffer.from(arrayBuffer);
+}
 // =========================================================
 // SEND OTP
 // =========================================================
@@ -372,7 +524,255 @@ app.post("/create-account", async (req, res) => {
     }
 
 });
+// =========================================================
+// CHECK DUPLICATE COMPLAINT IMAGE
+// =========================================================
 
+app.post(
+    "/check-duplicate-image",
+    upload.single("image"),
+    async (req, res) => {
+
+        try {
+
+            if (!req.file) {
+
+                return res.status(400).json({
+                    success: false,
+                    message: "Image is required"
+                });
+
+            }
+
+            console.log(
+                "Starting ORB duplicate-image check..."
+            );
+
+
+            // =================================================
+            // 1. PROCESS NEW IMAGE
+            // =================================================
+
+            const newGrayImage =
+                getGrayImageFromBuffer(
+                    req.file.buffer
+                );
+
+            const newFeatures =
+                getOrbFeatures(
+                    newGrayImage
+                );
+
+
+            if (
+                !newFeatures.descriptors ||
+                newFeatures.descriptors.rows === 0
+            ) {
+
+                return res.json({
+
+                    success: true,
+
+                    similar: false,
+
+                    similarity: 0,
+
+                    message:
+                        "No sufficient visual features found."
+
+                });
+
+            }
+
+
+            // =================================================
+            // 2. GET OLD COMPLAINT IMAGES
+            // =================================================
+
+            const {
+                data: complaints,
+                error
+            } = await supabase
+
+                .from("complaints")
+
+                .select(
+                    "id, image_url"
+                )
+
+                .not(
+                    "image_url",
+                    "is",
+                    null
+                )
+
+                .order(
+                    "created_at",
+                    {
+                        ascending: false
+                    }
+                );
+
+
+            if (error) {
+
+                console.log(
+                    "Duplicate check database error:",
+                    error
+                );
+
+                return res.status(500).json({
+
+                    success: false,
+
+                    message:
+                        error.message
+
+                });
+
+            }
+
+
+            // =================================================
+            // 3. COMPARE IMAGES
+            // =================================================
+
+            for (
+                const complaint
+                of complaints || []
+            ) {
+
+                if (
+                    !complaint.image_url
+                ) {
+                    continue;
+                }
+
+
+                try {
+
+                    const existingBuffer =
+                        await downloadImageBuffer(
+                            complaint.image_url
+                        );
+
+
+                    const existingGrayImage =
+                        getGrayImageFromBuffer(
+                            existingBuffer
+                        );
+
+
+                    const existingFeatures =
+                        getOrbFeatures(
+                            existingGrayImage
+                        );
+
+
+                    const result =
+                        calculateOrbSimilarity(
+                            newFeatures,
+                            existingFeatures
+                        );
+
+
+                    console.log(
+                        `Complaint ${complaint.id}: ` +
+                        `goodMatches=${result.goodMatches}, ` +
+                        `similarity=${(
+                            result.similarity * 100
+                        ).toFixed(2)}%`
+                    );
+
+
+                    // =================================================
+                    // SIMILAR IMAGE FOUND
+                    // =================================================
+
+                    if (result.similar) {
+
+                        return res.json({
+
+                            success: true,
+
+                            similar: true,
+
+                            similarity:
+                                Number(
+                                    (
+                                        result.similarity *
+                                        100
+                                    ).toFixed(2)
+                                ),
+
+                            complaint_id:
+                                complaint.id,
+
+                            good_matches:
+                                result.goodMatches,
+
+                            message:
+                                "A similar complaint image was found."
+
+                        });
+
+                    }
+
+                }
+
+                catch (imageError) {
+
+                    console.log(
+                        `Skipping complaint ${complaint.id}:`,
+                        imageError.message
+                    );
+
+                }
+
+            }
+
+
+            // =================================================
+            // NO SIMILAR IMAGE FOUND
+            // =================================================
+
+            return res.json({
+
+                success: true,
+
+                similar: false,
+
+                similarity: 0,
+
+                message:
+                    "No sufficiently similar complaint image found."
+
+            });
+
+
+        }
+
+        catch (error) {
+
+            console.log(
+                "ORB duplicate check error:",
+                error
+            );
+
+
+            return res.status(500).json({
+
+                success: false,
+
+                message:
+                    "Failed to compare complaint image"
+
+            });
+
+        }
+
+    }
+);
 
 // =========================================================
 // UPLOAD COMPLAINT IMAGE
