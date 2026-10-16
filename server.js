@@ -1,4 +1,3 @@
-
 const express = require("express");
 const ws = require("ws");
 const multer = require("multer");
@@ -7,80 +6,18 @@ const cors = require("cors");
 require("dotenv").config();
 
 const { createClient } = require("@supabase/supabase-js");
-const cv = require("@u4/opencv4nodejs");
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: {
         fileSize: 5 * 1024 * 1024
     }
 });
-
-// =========================================================
-// ORB IMAGE COMPARISON
-// =========================================================
-
-function compareImagesWithORB(imageBuffer1, imageBuffer2) {
-    const image1 = cv.imdecode(imageBuffer1);
-    const image2 = cv.imdecode(imageBuffer2);
-
-    const gray1 = image1.bgrToGray();
-    const gray2 = image2.bgrToGray();
-
-    const orb = new cv.ORBDetector();
-
-    const result1 = orb.detectAndCompute(gray1);
-    const result2 = orb.detectAndCompute(gray2);
-
-    if (
-        !result1.descriptors ||
-        !result2.descriptors ||
-        result1.descriptors.rows === 0 ||
-        result2.descriptors.rows === 0
-    ) {
-        return {
-            matchPercent: 0,
-            isDuplicate: false,
-            result: "Not Duplicate"
-        };
-    }
-
-    const matcher = new cv.BFMatcher(cv.NORM_HAMMING, false);
-
-    const matches = matcher.knnMatch(
-        result1.descriptors,
-        result2.descriptors,
-        2
-    );
-
-    const goodMatches = matches.filter(pair =>
-        pair.length >= 2 &&
-        pair[0].distance < 0.75 * pair[1].distance
-    );
-
-    const totalFeatures = Math.max(
-        result1.descriptors.rows,
-        result2.descriptors.rows
-    );
-
-    const matchPercent = Math.round(
-        goodMatches.length / totalFeatures * 100
-    );
-
-    const isDuplicate = matchPercent >= 30;
-
-    return {
-        matchPercent: Math.min(matchPercent, 100),
-        isDuplicate,
-        result: isDuplicate
-            ? "Duplicate Complaint"
-            : "Not Duplicate"
-    };
-}
 
 
 // =========================================================
@@ -781,122 +718,6 @@ app.get(
 
     }
 );
-
-// =========================================================
-// GET DUPLICATE COMPLAINTS
-// ADMIN
-// =========================================================
-
-app.get("/duplicate-complaints", async (req, res) => {
-    try {
-        // Fetch all complaints from Supabase
-        const { data: complaints, error } = await supabase
-            .from("complaints")
-            .select("*")
-            .order("created_at", { ascending: false });
-
-        if (error) {
-            return res.status(500).json({
-                success: false,
-                message: error.message
-            });
-        }
-
-        // Group complaints by hostel and room number
-        const groups = {};
-
-        for (const complaint of complaints || []) {
-            if (!complaint.room_number || !complaint.image_url) {
-                continue;
-            }
-
-            const hostel = String(complaint.hostel_name || "")
-                .trim()
-                .toLowerCase();
-
-            const room = String(complaint.room_number)
-                .trim()
-                .toLowerCase();
-
-            const key = `${hostel}::${room}`;
-
-            if (!groups[key]) {
-                groups[key] = [];
-            }
-
-            groups[key].push(complaint);
-        }
-
-        const duplicatePairs = [];
-
-        // Compare images only within the same hostel and room
-        for (const group of Object.values(groups)) {
-            if (group.length < 2) continue;
-
-            for (let i = 0; i < group.length; i++) {
-                for (let j = i + 1; j < group.length; j++) {
-                    const complaint1 = group[i];
-                    const complaint2 = group[j];
-
-                    try {
-                        // Download both images
-                        const [response1, response2] = await Promise.all([
-                            fetch(complaint1.image_url),
-                            fetch(complaint2.image_url)
-                        ]);
-
-                        if (!response1.ok || !response2.ok) {
-                            console.error("Could not download complaint images");
-                            continue;
-                        }
-
-                        const [buffer1, buffer2] = await Promise.all([
-                            response1.arrayBuffer(),
-                            response2.arrayBuffer()
-                        ]);
-
-                        // Compare using ORB
-                        const comparison = compareImagesWithORB(
-                            Buffer.from(buffer1),
-                            Buffer.from(buffer2)
-                        );
-
-                        // Return only pairs classified as duplicates
-                        if (comparison.isDuplicate) {
-                            duplicatePairs.push({
-                                complaint1,
-                                complaint2,
-                                room_number: complaint1.room_number,
-                                match_percent: comparison.matchPercent,
-                                is_duplicate: true,
-                                result: "Duplicate Complaint"
-                            });
-                        }
-                    } catch (imageError) {
-                        console.error(
-                            "Image comparison failed:",
-                            imageError.message
-                        );
-                    }
-                }
-            }
-        }
-
-        return res.json({
-            success: true,
-            total_duplicates: duplicatePairs.length,
-            duplicates: duplicatePairs
-        });
-
-    } catch (error) {
-        console.error("Duplicate complaints API error:", error);
-
-        return res.status(500).json({
-            success: false,
-            message: "Failed to detect duplicate complaints"
-        });
-    }
-});
 
 
 // =========================================================
